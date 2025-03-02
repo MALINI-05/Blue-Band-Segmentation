@@ -1,0 +1,78 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from tensorflow.keras.models import load_model
+
+# Load trained model
+model = load_model(r"C:\Users\USER\Desktop\water_quality_segmentation_cnn.keras")
+
+# Load and preprocess test image
+test_image_path = r"C:\Users\USER\Desktop\BLUE BAND\Pic1.jpg"
+image = cv2.imread(test_image_path, cv2.IMREAD_GRAYSCALE)
+image = cv2.resize(image, (128, 128)) / 255.0  # Normalize to [0,1]
+image = image.reshape(1, 128, 128, 1)
+
+# Predict mask
+predicted_mask = model.predict(image)[0].squeeze()
+
+# **1️⃣ Calculate Water Cover Percentage**
+threshold = 0.5  # Adjust if needed
+water_pixels = np.sum(predicted_mask > threshold)
+total_pixels = predicted_mask.size
+water_percentage = (water_pixels / total_pixels) * 100
+no_water_percentage = 100 - water_percentage  # No polluted water category
+
+# **2️⃣ Convert Images for OpenCV**
+image_uint8 = (image.squeeze() * 255).astype(np.uint8)  # Convert image to uint8
+mask_uint8 = (predicted_mask * 255).astype(np.uint8)  # Convert mask to uint8
+
+# **3️⃣ Apply Colormap (Jet)**
+colored_mask = cv2.applyColorMap(mask_uint8, cv2.COLORMAP_JET)
+
+# **4️⃣ Overlay Mask on Original Image**
+overlay = cv2.addWeighted(image_uint8, 0.5, mask_uint8, 0.5, 0)
+
+# **5️⃣ Contour Map for Water Boundaries**
+edges = cv2.Canny(mask_uint8, 50, 150)  # Edge detection
+
+# **6️⃣ Create a Single Figure with All Outputs**
+fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+
+# Input Image
+axes[0, 0].imshow(image.squeeze(), cmap="gray")
+axes[0, 0].set_title("Input Blue-Band Image")
+axes[0, 0].axis("off")
+
+# Colored Mask
+axes[0, 1].imshow(colored_mask)
+axes[0, 1].set_title("Colored Water Quality Mask")
+axes[0, 1].axis("off")
+
+# Overlay Image
+axes[0, 2].imshow(overlay, cmap="jet")
+axes[0, 2].set_title("Water Segmentation Overlay")
+axes[0, 2].axis("off")
+
+# Contour Map
+axes[1, 0].imshow(edges, cmap="gray")
+axes[1, 0].set_title("Water Contour Map")
+axes[1, 0].axis("off")
+
+# **Updated Bar Graph (Only Clean Water & No Water)**
+categories = ["Clean Water", "No Water"]
+percentages = [water_percentage, no_water_percentage]
+colors = ["blue", "gray"]
+
+sns.barplot(ax=axes[1, 1], x=categories, y=percentages, palette=colors)
+axes[1, 1].set_title("Water Quality Distribution")
+axes[1, 1].set_ylabel("Percentage")
+
+# Display Water Cover Text
+axes[1, 2].axis("off")
+axes[1, 2].text(0.1, 0.7, f"✅ Clean Water: {water_percentage:.2f}%", fontsize=12, color="blue")
+axes[1, 2].text(0.1, 0.5, f"🚫 No Water: {no_water_percentage:.2f}%", fontsize=12, color="gray")
+
+# Show the figure
+plt.tight_layout()
+plt.show()
