@@ -1,0 +1,58 @@
+import cv2
+import numpy as np
+import os
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, UpSampling2D, Dropout
+import matplotlib.pyplot as plt
+
+# Paths
+blue_band_dir = r"C:\Users\USER\Downloads\Blue band images"
+mask_dir = r"C:\Users\USER\Downloads\archive (3)\Water Bodies Dataset\Masks"
+os.makedirs(blue_band_dir, exist_ok=True)
+
+# Load Data
+def load_data(images_dir, masks_dir):
+    images, masks = [], []
+    for filename in os.listdir(images_dir):
+        img_path = os.path.join(images_dir, filename)
+        mask_path = os.path.join(masks_dir, filename)
+
+        image = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+
+        image = cv2.resize(image, (128, 128)) / 255.0
+        mask = cv2.resize(mask, (128, 128)) / 255.0
+
+        images.append(image)
+        masks.append(mask)
+    
+    return np.array(images).reshape(-1, 128, 128, 1), np.array(masks).reshape(-1, 128, 128, 1)
+
+X_train, Y_train = load_data(blue_band_dir, mask_dir)
+
+# Build CNN Model
+model = Sequential([
+    Conv2D(32, (3, 3), activation="relu", padding="same", input_shape=(128, 128, 1)),
+    MaxPooling2D(2, 2),
+    Conv2D(64, (3, 3), activation="relu", padding="same"),
+    MaxPooling2D(2, 2),
+    Conv2D(128, (3, 3), activation="relu", padding="same"),
+    UpSampling2D(2),
+    Conv2D(64, (3, 3), activation="relu", padding="same"),
+    UpSampling2D(2),
+    Conv2D(1, (3, 3), activation="sigmoid", padding="same")
+])
+
+# Compile Model
+model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
+
+# Train Model
+EPOCHS = 100
+model.fit(X_train, Y_train, batch_size=16, epochs=EPOCHS, validation_split=0.2)
+
+# Save Model
+model.save("water_quality_segmentation_cnn.keras")
+
+print("✅ Model training completed and saved!")
+
